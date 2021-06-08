@@ -1,3 +1,4 @@
+
 """
 Created on Tue Jun  8 14:36:43 2021
 
@@ -134,6 +135,44 @@ plt.show()
 
 #-------------------
 
+"""TRAINING TRIAL"""
+data_train = bt.get(tickers, start='2015-01-01', end = '2018-12-31')
+ticker_count = len(data_train.columns)
+# define the length of the short and long averages
+short_train = 50
+long_train = 180
+
+# a rolling mean is a moving average, right?
+sma_short_train = data_train.rolling(short_train).mean()
+sma_long_train = data_train.rolling(long_train).mean()
+
+# and compute sma_50 for replicating earlier strat
+sma_50_train = data_train.rolling(short_train).mean()
+
+# let's see what the data looks like - this is by no means a pretty chart, but it does the job
+plot = bt.merge(data_train, sma_short_train, sma_long_train).plot(figsize=(15, 5))
+
+target_weights_train = sma_long_train.copy()
+
+# set appropriate target weights
+target_weights_train[sma_short_train > sma_long_train] = 1/ticker_count
+target_weights_train[sma_short_train <= sma_long_train] = -(1/ticker_count)
+
+
+# Now set up the MA_cross strategy for our moving average cross strategy
+MA_cross = bt.Strategy('MA_cross', [bt.algos.WeighTarget(target_weights_train),
+                                    bt.algos.Rebalance()])
+
+test_MA_train = bt.Backtest(MA_cross, data_train)
+res_MA_train = bt.run(test_MA_train)
+
+# plot security weights to test logic
+res_MA_train.plot_security_weights()
+res_MA_train.plot()
+res_MA_train.display()
+
+#----------------------------
+
 data2 = bt.get(tickers, start='2018-05-01', end = '2021-12-01')
 ticker_count = len(data2.columns)
 # define the length of the short and long averages
@@ -168,3 +207,255 @@ res_MA = bt.run(test_MA)
 res_MA.plot_security_weights()
 res_MA.plot()
 res_MA.display()
+
+#----------------------
+
+tickers = ('aapl, msft, v, nvda, ma, pypl, intc, adbe, crm, avgo, csco, acn, txn, qcom, orcl, amat, ibm, now, intu, mu, amd, fis, lrcx, adp, fisv')
+start_date = '2015-07-01'
+end_date = '2018-12-31'
+
+
+
+
+portfolio = bt.get(tickers, start = start_date, end = end_date )
+
+# We will need the risk-free rate to get correct Sharpe Ratios 
+riskfree =  bt.get('^IRX', start=start_date)
+# Convert risk free from % to decimal
+
+riskfree_rate = float(riskfree.mean()) / 100
+# Print out the risk free rate to make sure it looks good
+print(riskfree_rate)
+
+#we start to built our first strategy where we run monthly and the weight assigned to the stocks is equal
+Strat1 = bt.Strategy('Benchmark', [bt.algos.RunMonthly(),
+                                     bt.algos.SelectAll(),
+                                     bt.algos.WeighEqually(),
+                                     bt.algos.Rebalance()])
+
+# we run our backtest to test our strategy
+test = bt.Backtest(Strat1, portfolio)
+
+# create a second strategy named Second_Strat
+# we RunWeekly and Weight using Inverse Volatility in this strategy 
+# This means the strategy will make more trades and put more weight on less Volatile asset
+Strat2 = bt.Strategy('Inverse Vol', [bt.algos.RunWeekly(),
+                        bt.algos.SelectAll(),
+                        bt.algos.WeighInvVol(),
+                        bt.algos.Rebalance()])
+
+
+Strat3 = bt.Strategy('Mean Var',  [bt.algos.RunEveryNPeriods(30, offset=30),
+                                       bt.algos.SelectAll(),
+                                       bt.algos.WeighMeanVar(lookback=pd.DateOffset(months=3),bounds=(0.015,0.15), rf=riskfree_rate),
+                                       bt.algos.Rebalance()])
+
+# Test Second_Strat and name it test2
+test2 = bt.Backtest(Strat2, portfolio)
+test3 = bt.Backtest(Strat3, portfolio)
+
+
+
+# To see the results side-by-side, we must tell the bt.run to use both tests
+# All res2 commands will produce output comparing s1 and s2 because we have test and test2
+results_both = bt.run(test, test2, test3, test_MA_train)
+results_both.set_riskfree_rate(riskfree_rate)
+
+# res_First_Strat only has test in it, so you will only see Second_Strat from it
+res_Strat1 = bt.run(test)
+
+# res_Second_Strat only has test2 in it, so you will only see Second_Strat from it
+res_Strat2 = bt.run(test2)
+res_Strat3 = bt.run(test3)
+
+# res2 plots here include both s1 and s2 info
+results_both.plot()
+
+
+results_both.display()
+
+# Plot weights from the first strategy to illustrate the different weighting schemes
+res_Strat1.plot_security_weights()
+res_Strat3.plot_security_weights()
+res_Strat3.plot_security_weights()
+# For some reason, I cannot plot weights or histograms for both at the same time
+results_both.plot_security_weights()
+
+#----------------------------------------
+
+start_date_test = '2019-01-01'
+end_date_test = '2020-12-31'
+
+data_test = bt.get(tickers, start = start_date_test, end = end_date_test)
+
+test_t = bt.Backtest(Strat1, data_test)
+test2_t = bt.Backtest(Strat2, data_test)
+test3_t = bt.Backtest(Strat3, data_test)
+
+
+
+# To see the results side-by-side, we must tell the bt.run to use both tests
+# All res2 commands will produce output comparing s1 and s2 because we have test and test2
+results_both_test = bt.run(test_t, test2_t, test3_t, test_MA)
+results_both_test.set_riskfree_rate(riskfree_rate)
+
+# res_First_Strat only has test in it, so you will only see Second_Strat from it
+res_Strat1_t = bt.run(test_t)
+
+# res_Second_Strat only has test2 in it, so you will only see Second_Strat from it
+res_Strat2_t = bt.run(test2_t)
+res_Strat3_t = bt.run(test3_t)
+res_Strat4_t = bt.run(test_MA)
+
+# res2 plots here include both s1 and s2 info
+results_both_test.plot()
+
+
+results_both_test.display()
+
+# Plot weights from the first strategy to illustrate the different weighting schemes
+res_Strat1_t.plot_security_weights()
+res_Strat2_t.plot_security_weights()
+res_Strat3_t.plot_security_weights()
+res_Strat4_t.plot_security_weights()
+# For some reason, I cannot plot weights or histograms for both at the same time
+results_both_test.plot_security_weights()
+
+#-----------------------------------------
+
+
+import numpy as np                 # Mathematical computation package
+import talib as ta                 # Trading Analytics Library
+import pandas as pd                # Data science fundamentals package
+import seaborn as sns              # Advanced visual graphics package
+from tqdm.notebook import tqdm     # Loop progress bar
+import matplotlib.pyplot as plt    # Visual graphics package
+
+
+# Define Portfolio
+
+tickers_bb = ('aapl, msft, v, nvda, ma, pypl, intc, adbe, crm, avgo, csco, acn, txn, qcom, orcl, amat, ibm, now, intu, mu, amd, fis, lrcx, adp, fisv')
+start_bb = '2015-07-01'
+end_bb = '2018-12-31'
+start2_bb = '2018-12-31'
+end2_bb = '2020-12-31'
+
+# Get stock adjusted closed prices data from Yahoo Finance using the bt package
+riskfree_bb = bt.get('^IRX', start=start_bb)
+riskfree_rate_bb = float(riskfree_bb.mean())/100
+data_bb = bt.get(tickers_bb, start = start_bb, end = end_bb)
+data2_bb = bt.get(tickers_bb, start = start2_bb, end = end2_bb)
+
+
+plt.rcParams["figure.figsize"] = (15, 5) # Set figure size for notebook
+
+# Placeholder for bands
+upper_bands = []
+middle_bands = []
+lower_bands = []
+
+# Loop over each ticker in data
+for ticker in data_bb.columns:
+
+    # Calculate BBANDS
+    upper, middle, lower  = ta.BBANDS(data_bb[ticker],     # Data
+                                      timeperiod = 30,  # n Period simple moving average
+                                      nbdevup    = 1,   # k Standard deviation upwards  
+                                      nbdevdn    = 1)   # k Standard deviation downwards
+    upper_bands.append(upper)
+    middle_bands.append(middle)
+    lower_bands.append(lower)
+    
+    # Plot the BBANDS
+    plt.figure(figsize=(15, 5))
+    plt.plot(data_bb[ticker], color='green', label='Price')
+    plt.plot(upper, color='tomato', label="Upper σ")
+    plt.plot(middle, color='blue', label='SMA Period')
+    plt.plot(lower, color='tomato', label='Lower σ')
+
+    # Customize and show the plot
+    plt.legend(loc='upper left')
+    plt.title(ticker+' (σ)', fontsize=25)
+    plt.show()  
+    
+    ## Define Signal
+
+# Create placeholder for signal
+lower_bands_df = pd.DataFrame()
+
+# Copy over lower bands for our tickers and transpose the dataframe
+lower_bands_df = pd.DataFrame.from_records(data_bb = lower_bands).T
+
+# Rename columns to match our adjustced close dataframe
+lower_bands_df.columns = data_bb.columns
+
+# Define signal as True when adjust close is less than lower band
+signal_bb = data_bb < lower_bands_df
+
+# Define the strategy
+strategy_bb = bt.Strategy('Bollinger Bands',
+                       [bt.algos.SelectWhere(signal_bb),         
+                        bt.algos.WeighEqually(),
+                        bt.algos.Rebalance()])
+
+# Create the Backtest algorithm using the historical adjusted close
+backtest_bbands = bt.Backtest(strategy_bb, data_bb)
+
+# Run the backtest and store the results
+results_bb = bt.run(backtest_bbands)
+results_bb.set_riskfree_rate(riskfree_rate_bb)
+
+# Plot equity progression
+results_bb.display()
+results_bb.plot()
+
+
+
+
+# Placeholder for bands
+upper_bands2 = []
+middle_bands2 = []
+lower_bands2 = []
+
+# Loop over each ticker in data
+for ticker in data2_bb.columns:
+
+    # Calculate BBANDS
+    upper, middle, lower  = ta.BBANDS(data2_bb[ticker],    # Data
+                                      timeperiod = 30,  # n Period simple moving average
+                                      nbdevup    = 1,   # k Standard deviation upwards  
+                                      nbdevdn    = 1)   # k Standard deviation downwards
+    upper_bands2.append(upper)
+    middle_bands2.append(middle)
+    lower_bands2.append(lower)
+    
+## Define Signal
+
+# Create placeholder for signal
+lower_bands_df2 = pd.DataFrame()
+
+# Copy over lower bands for our tickers and transpose the dataframe
+lower_bands_df2 = pd.DataFrame.from_records(data_bb = lower_bands2).T
+
+# Rename columns to match our adjustced close dataframe
+lower_bands_df2.columns = data_bb.columns
+
+# Define signal as True when adjust close is less than lower band
+signal2_bb = data2_bb < lower_bands_df2
+
+# Define the strategy
+strategy2_bb = bt.Strategy('Bollinger Bands',
+                       [bt.algos.SelectWhere(signal2_bb),         
+                        bt.algos.WeighEqually(),
+                        bt.algos.Rebalance()])
+
+# Create the Backtest algorithm using the historical adjusted close
+test_bbands_bb = bt.Backtest(strategy2_bb, data2_bb)
+
+# Run the backtest and store the results
+results2_bb = bt.run(test_bbands_bb)
+results2_bb.set_riskfree_rate(riskfree_rate_bb)
+
+# Plot equity progression
+results2_bb.display()
+results2_bb.plot()
