@@ -1,0 +1,170 @@
+"""
+Created on Tue Jun  8 14:36:43 2021
+
+@author: daniellopezborge
+
+SMA crossover strategy
+"""
+import bt
+import numpy as np
+import pandas as pd
+from tqdm.notebook import tqdm 
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+def ma_crossover(data = pd.DataFrame(), SMA_short_per = 50, SMA_long_per = 200, strategy_name = 'Benchmark'):
+    
+    # Calculate SMAs
+    sma_short = data.rolling(SMA_short_per).mean()
+    sma_long = data.rolling(SMA_long_per).mean()
+    # Count the number of tickers
+    ticker_count = len(data.columns)
+    # Set target weights
+    target_weights = sma_long.copy() 
+    target_weights[sma_short > sma_long] = 1/ticker_count
+    target_weights[sma_short <= sma_long] = -(1/ticker_count)
+    # Create strategy
+    strategy = bt.Strategy(strategy_name, [bt.algos.WeighTarget(target_weights),
+                                           bt.algos.Rebalance()])
+# functions returns (a.k.a outputs) the Backtest object
+    return bt.Backtest(strategy, data)
+
+# Instantiate tickers
+tickers = ('aapl, msft, v, nvda, ma, pypl, intc, adbe, crm, avgo, csco, acn, txn, qcom, orcl, amat, ibm, now, intu, mu, amd, fis, lrcx, adp, fisv')
+start_date = '2015-07-01'
+end_date = '2018-12-31'
+# Get data
+price_data = bt.get(tickers, start = start_date, end = end_date)
+# Create placeholder for SMAs, CAGR, & Daily Sharpe
+results_df = pd.DataFrame(columns = ['Short_SMA', 'Long_SMA', 'CAGR', 'Daily_Sharpe'])
+
+# Loop over different short SMAs
+for short_sma in tqdm(np.arange(30, 151, 10)): 
+
+    # Loop over different long SMAs:
+    for long_sma in np.arange(100, 201, 10):
+
+        # Define the strategy name
+        strategy_name = 'SMA_'+ str(short_sma) + '_' + str(long_sma)
+
+        # Run the backtest for each SMA combination
+        result = bt.run(ma_crossover(data = price_data,
+                                     SMA_short_per = short_sma,
+                                     SMA_long_per = long_sma,
+                                     strategy_name = strategy_name))
+        
+        # Save some figures into variable for easy access
+        CAGR = result.stats.at['cagr', strategy_name]
+        Daily_Sharpe = result.stats.at['daily_sharpe', strategy_name]
+
+        results_df = results_df.append({'Short_SMA': short_sma.astype(int),
+                                        'Long_SMA': long_sma.astype(int),
+                                        'CAGR': CAGR,
+                                        'Daily Sharpe': Daily_Sharpe},
+                                        ignore_index = True)
+
+
+
+# Set Short & Long columns as integers for aesthetics
+results_df['Short_SMA'] = results_df['Short_SMA'].astype(int) 
+results_df['Long_SMA'] = results_df['Long_SMA'].astype(int)
+
+CAGR = results_df.pivot(index='Short_SMA', columns = 'Long_SMA', values = 'CAGR')
+
+# Plot heatmap
+# Set figure size
+fig, ax = plt.subplots(figsize=(15, 8))
+# Plot the heatmap
+ax = sns.heatmap(data = CAGR,
+                 annot = True,
+                 annot_kws = {"fontsize":15},
+                 linewidths = 0.5,
+                 cmap = "inferno")
+                 
+
+                 
+# Data for plot (3 dimension
+# Annotate with values
+# Size of annotation
+# Size of gridlines
+# Style (viridis, plasma, in
+# Change size of x-axis & y-axis tickmarks
+ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 16)
+ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 15)
+# Customize labels
+ax.set_xlabel("Long SMA", fontsize = 20)
+ax.set_ylabel("Short SMA", fontsize = 20)
+ax.set_title("CAGR per SMA Combination",fontsize = 23)
+# Show plot
+plt.show()
+
+
+
+#--------------
+
+
+Daily_Sharpe = results_df.pivot(index='Short_SMA', columns = 'Long_SMA', values = 'Daily Sharpe')
+
+# Plot heatmap
+# Set figure size
+fig, ax = plt.subplots(figsize=(15, 8))
+# Plot the heatmap
+ax = sns.heatmap(data = Daily_Sharpe,
+                 annot = True,
+                 annot_kws = {"fontsize":15},
+                 linewidths = 0.5,
+                 cmap = "inferno")
+                 
+
+                 
+# Data for plot (3 dimension
+# Annotate with values
+# Size of annotation
+# Size of gridlines
+# Style (viridis, plasma, in
+# Change size of x-axis & y-axis tickmarks
+ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 16)
+ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 15)
+# Customize labels
+ax.set_xlabel("Long SMA", fontsize = 20)
+ax.set_ylabel("Short SMA", fontsize = 20)
+ax.set_title("Daily_Sharpe per SMA Combination",fontsize = 23)
+# Show plot
+plt.show()
+
+#-------------------
+
+data2 = bt.get(tickers, start='2018-05-01', end = '2021-12-01')
+ticker_count = len(data2.columns)
+# define the length of the short and long averages
+short = 50
+long = 180
+
+# a rolling mean is a moving average, right?
+sma_short = data2.rolling(short).mean()
+sma_long = data2.rolling(long).mean()
+
+# and compute sma_50 for replicating earlier strat
+sma_50 = data2.rolling(short).mean()
+
+# let's see what the data looks like - this is by no means a pretty chart, but it does the job
+plot = bt.merge(data2, sma_short, sma_long).plot(figsize=(15, 5))
+
+target_weights = sma_long.copy()
+
+# set appropriate target weights
+target_weights[sma_short > sma_long] = 1/ticker_count
+target_weights[sma_short <= sma_long] = -(1/ticker_count)
+
+
+# Now set up the MA_cross strategy for our moving average cross strategy
+MA_cross = bt.Strategy('MA_cross', [bt.algos.WeighTarget(target_weights),
+                                    bt.algos.Rebalance()])
+
+test_MA = bt.Backtest(MA_cross, data2)
+res_MA = bt.run(test_MA)
+
+# plot security weights to test logic
+res_MA.plot_security_weights()
+res_MA.plot()
+res_MA.display()
