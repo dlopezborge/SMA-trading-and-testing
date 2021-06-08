@@ -1,4 +1,6 @@
 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Created on Tue Jun  8 14:36:43 2021
 
@@ -224,8 +226,6 @@ riskfree =  bt.get('^IRX', start=start_date)
 # Convert risk free from % to decimal
 
 riskfree_rate = float(riskfree.mean()) / 100
-# Print out the risk free rate to make sure it looks good
-print(riskfree_rate)
 
 #we start to built our first strategy where we run monthly and the weight assigned to the stocks is equal
 Strat1 = bt.Strategy('Benchmark', [bt.algos.RunMonthly(),
@@ -334,7 +334,7 @@ import matplotlib.pyplot as plt    # Visual graphics package
 
 # Define Portfolio
 
-tickers_bb = ('aapl, msft, v, nvda, ma, pypl, intc, adbe, crm, avgo, csco, acn, txn, qcom, orcl, amat, ibm, now, intu, mu, amd, fis, lrcx, adp, fisv')
+#tickers = ('aapl, msft, v, nvda, ma, pypl, intc, adbe, crm, avgo, csco, acn, txn, qcom, orcl, amat, ibm, now, intu, mu, amd, fis, lrcx, adp, fisv')
 start_bb = '2015-07-01'
 end_bb = '2018-12-31'
 start2_bb = '2018-12-31'
@@ -343,8 +343,8 @@ end2_bb = '2020-12-31'
 # Get stock adjusted closed prices data from Yahoo Finance using the bt package
 riskfree_bb = bt.get('^IRX', start=start_bb)
 riskfree_rate_bb = float(riskfree_bb.mean())/100
-data_bb = bt.get(tickers_bb, start = start_bb, end = end_bb)
-data2_bb = bt.get(tickers_bb, start = start2_bb, end = end2_bb)
+data_bb = bt.get(tickers, start = start_bb, end = end_bb)
+data2_bb = bt.get(tickers, start = start2_bb, end = end2_bb)
 
 
 plt.rcParams["figure.figsize"] = (15, 5) # Set figure size for notebook
@@ -355,10 +355,10 @@ middle_bands = []
 lower_bands = []
 
 # Loop over each ticker in data
-for ticker in data_bb.columns:
+for tickers_bb in data_bb.columns:
 
     # Calculate BBANDS
-    upper, middle, lower  = ta.BBANDS(data_bb[ticker],     # Data
+    upper, middle, lower  = ta.BBANDS(data_bb[tickers],     # Data
                                       timeperiod = 30,  # n Period simple moving average
                                       nbdevup    = 1,   # k Standard deviation upwards  
                                       nbdevdn    = 1)   # k Standard deviation downwards
@@ -368,14 +368,14 @@ for ticker in data_bb.columns:
     
     # Plot the BBANDS
     plt.figure(figsize=(15, 5))
-    plt.plot(data_bb[ticker], color='green', label='Price')
+    plt.plot(data_bb[tickers_bb], color='green', label='Price')
     plt.plot(upper, color='tomato', label="Upper σ")
     plt.plot(middle, color='blue', label='SMA Period')
     plt.plot(lower, color='tomato', label='Lower σ')
 
     # Customize and show the plot
     plt.legend(loc='upper left')
-    plt.title(ticker+' (σ)', fontsize=25)
+    plt.title(tickers_bb+' (σ)', fontsize=25)
     plt.show()  
     
     ## Define Signal
@@ -384,7 +384,7 @@ for ticker in data_bb.columns:
 lower_bands_df = pd.DataFrame()
 
 # Copy over lower bands for our tickers and transpose the dataframe
-lower_bands_df = pd.DataFrame.from_records(data_bb = lower_bands).T
+lower_bands_df = pd.DataFrame.from_records(data = lower_bands).T
 
 # Rename columns to match our adjustced close dataframe
 lower_bands_df.columns = data_bb.columns
@@ -408,10 +408,6 @@ results_bb.set_riskfree_rate(riskfree_rate_bb)
 # Plot equity progression
 results_bb.display()
 results_bb.plot()
-
-
-
-
 # Placeholder for bands
 upper_bands2 = []
 middle_bands2 = []
@@ -421,7 +417,7 @@ lower_bands2 = []
 for ticker in data2_bb.columns:
 
     # Calculate BBANDS
-    upper, middle, lower  = ta.BBANDS(data2_bb[ticker],    # Data
+    upper, middle, lower  = ta.BBANDS(data2_bb[tickers],    # Data
                                       timeperiod = 30,  # n Period simple moving average
                                       nbdevup    = 1,   # k Standard deviation upwards  
                                       nbdevdn    = 1)   # k Standard deviation downwards
@@ -435,7 +431,7 @@ for ticker in data2_bb.columns:
 lower_bands_df2 = pd.DataFrame()
 
 # Copy over lower bands for our tickers and transpose the dataframe
-lower_bands_df2 = pd.DataFrame.from_records(data_bb = lower_bands2).T
+lower_bands_df2 = pd.DataFrame.from_records(data = lower_bands2).T
 
 # Rename columns to match our adjustced close dataframe
 lower_bands_df2.columns = data_bb.columns
@@ -459,3 +455,4 @@ results2_bb.set_riskfree_rate(riskfree_rate_bb)
 # Plot equity progression
 results2_bb.display()
 results2_bb.plot()
+
